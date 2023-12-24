@@ -1,10 +1,27 @@
 services:
 
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - rabbitmq:/var/lib/rabbitmq
+      - rabbitmq:/var/log/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+    # test: rabbitmq-diagnostics check_port_connectivity
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
   mitmproxy:
     build:
       context: etc/mitmproxy
       args:
         MITMPROXY_VERSION: ${MITMPROXY_VERSION}
+    depends_on:
+      - rabbitmq
     tty: true
     stdin_open: true
     command: >
@@ -20,6 +37,11 @@ services:
     volumes:
       - ./etc/mitmproxy/certificates:/home/mitmproxy/.mitmproxy/
       - ./etc/mitmproxy/plugins/requests_to_rabbitmq.py:/requests_to_rabbitmq.py
+    healthcheck:
+      test: curl --fail http://localhost:8081/ || exit 1
+      interval: 1s
+      timeout: 3s
+      retries: 30
 
   curl:
     image: curlimages/curl
@@ -27,3 +49,6 @@ services:
     environment:
       http_proxy: mitmproxy:8080
       https_proxy: mitmproxy:8080
+
+volumes:
+  rabbitmq:
